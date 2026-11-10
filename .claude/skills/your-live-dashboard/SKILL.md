@@ -8,10 +8,13 @@ description: >-
   blocked and why), price alerts that rang, how fresh prices, news, Pelosi
   filings and the risk check are, what the gatekeeper denied or asked, and what
   the Claudes said to each other. Runs a read-only page on this computer, or
-  writes a snapshot file, or prints the same as text in the chat. Use when the
-  user says "show my dashboard", "open the dashboard", "how am I doing", "where
-  do my orders stand", "give me the overview", "status of everything",
-  "morning summary", or "what's going on with my portfolio".
+  writes a snapshot file, or prints the same as text in the chat. Also starts
+  the multi-agent observability dashboard, where hooks stream what every
+  Claude agent and subagent is doing in real time. Use when the user says
+  "show my dashboard", "open the dashboard", "how am I doing", "where do my
+  orders stand", "give me the overview", "status of everything", "morning
+  summary", "what's going on with my portfolio", "show what the agents are
+  doing", "start the observability server", or "open the agent dashboard".
 argument-hint: "[serve | build | text]"
 ---
 
@@ -101,6 +104,52 @@ which hit the user's $50 stop. Nothing was sold. Everything is inside the
 band. The AAPL top-up was blocked by the cash buffer and the 25% cap, the
 GOOGL buy is waiting for the Allow once card, and the Pelosi check is three
 days old.
+
+## Agent activity: the multi-agent observability dashboard
+
+The page above shows the portfolio. To watch the *agents* (every tool call,
+prompt, subagent start and stop, as it happens), this project sends Claude
+Code hook events to the dashboard from
+github.com/disler/claude-code-hooks-multi-agent-observability.
+
+What is installed in this project:
+
+- `.claude/settings.json`: all 12 hook events (SessionStart, SessionEnd,
+  UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure,
+  PermissionRequest, Notification, SubagentStart, SubagentStop, Stop,
+  PreCompact) run `.claude/hooks/send_event.py --source-app background-logo`.
+  They are `async`, so they never slow Claude down, and they always exit 0,
+  so nothing breaks when the dashboard isn't running (the event is dropped).
+- `.claude/hooks/send_event.py` and `utils/summarizer.py`, `utils/llm/anth.py`
+  from that repository; `utils/model_extractor.py` is a stand-in written here
+  because upstream references it but doesn't ship it.
+
+To start the dashboard on the user's computer (needs Bun and uv):
+
+```bash
+git clone https://github.com/disler/claude-code-hooks-multi-agent-observability
+cd claude-code-hooks-multi-agent-observability
+(cd apps/server && bun install) && (cd apps/client && bun install)
+./scripts/start-system.sh        # server on :4000, dashboard on :5173 (or: just start)
+```
+
+Then open http://localhost:5173 and use Claude Code in this project; events
+appear within a second. Each session gets its own color and swim lane; the
+filter panel narrows by session or event type. `./scripts/reset-system.sh`
+stops it.
+
+Notes to tell the user when it matters:
+
+- Events stay on their computer: the hooks post to `localhost:4000`, which
+  keeps them in a SQLite file (`apps/server/events.db`). The Stop event
+  includes the chat transcript.
+- `--summarize` asks Claude Haiku for a one-line summary of each prompt and
+  tool call, **only if** `ANTHROPIC_API_KEY` is set where Claude Code runs
+  (or in a `.env` in the project). That is a small paid API call per event,
+  sending up to 1,000 characters of it. Remove `--summarize` from
+  `.claude/settings.json` to turn it off.
+- On Windows, the hook commands use `$CLAUDE_PROJECT_DIR` and `uv`; run Claude
+  Code from Git Bash or WSL, or adjust the commands.
 
 ## Safety
 
