@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Live Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --raise: #ffffff;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,.10); --chip: #f0efec;
+  --series: #2a78d6; --track: #e9f1fc;
+  --good: #0ca30c; --good-text: #006300; --warn: #fab219; --warn-text: #8a5a00;
+  --serious: #ec835a; --crit: #d03b3b; --crit-text: #b42828;
+  --shadow: 0 1px 2px rgba(11,11,11,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --raise: #20201f;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10); --chip: #262624;
+    --series: #3987e5; --track: #1d2a3b;
+    --good-text: #3fbf3f; --warn-text: #fab219; --crit-text: #f07171;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --raise: #20201f;
+  --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10); --chip: #262624;
+  --series: #3987e5; --track: #1d2a3b;
+  --good-text: #3fbf3f; --warn-text: #fab219; --crit-text: #f07171;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+.sub { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--ring); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.pill b { color: var(--ink); font-weight: 600; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.crit { background: var(--crit); }
+.pill.live .dot.good { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .pill.live .dot.good { animation: none; } }
+.pill.danger { background: var(--crit); color: #fff; box-shadow: none; }
+.pill.danger b { color: #fff; }
+button.pill { cursor: pointer; font: inherit; font-size: 12.5px; border: 0; }
+button.pill:hover { color: var(--ink); }
+
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.tile, .card { background: var(--surface); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ring), var(--shadow); }
+.tile { padding: 14px 16px; min-height: 104px; }
+.tile .label { color: var(--ink-2); font-size: 12.5px; }
+.tile .value { font-size: 26px; font-weight: 620; margin-top: 4px; letter-spacing: -0.015em; }
+.tile .delta { font-size: 12.5px; margin-top: 2px; color: var(--ink-2); }
+.up { color: var(--good-text); } .down { color: var(--crit-text); }
+.tile .note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
+.card { padding: 14px 16px 16px; min-width: 0; }
+.span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; } .span-7 { grid-column: span 7; }
+.card h2 { font-size: 14px; font-weight: 620; margin: 0; }
+.card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.card .hint { color: var(--muted); font-size: 12px; text-align: right; }
+.empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+.empty code, .hint code, footer code { font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; }
+
+/* allocation vs target */
+.key { display: flex; gap: 14px; color: var(--ink-2); font-size: 12px; margin: -2px 0 10px; flex-wrap: wrap; }
+.key i { display: inline-block; vertical-align: -1px; margin-right: 5px; }
+.key .k-bar { width: 12px; height: 10px; background: var(--series); border-radius: 0 3px 3px 0; }
+.key .k-tgt { width: 2px; height: 12px; background: var(--ink); }
+.rows { display: flex; flex-direction: column; gap: 4px; }
+.arow { display: grid; grid-template-columns: 56px minmax(0, 1fr) 92px; align-items: center; gap: 10px; padding: 5px 4px; border-radius: 6px; }
+.arow:hover { background: var(--chip); }
+.arow .t { font-weight: 600; font-size: 13px; }
+.track { position: relative; height: 16px; }
+.track .base { position: absolute; left: 0; top: -3px; bottom: -3px; width: 1px; background: var(--axis); }
+.track .bar { position: absolute; left: 0; top: 1px; height: 14px; background: var(--series); border-radius: 0 4px 4px 0; min-width: 2px; }
+.track .tgt { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; }
+.track .band { position: absolute; top: 4px; height: 8px; background: var(--grid); opacity: .7; border-radius: 2px; }
+.arow .v { font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.arow .v small { display: block; color: var(--ink-2); font-size: 11.5px; }
+.flag { color: var(--warn-text); font-weight: 600; }
+
+/* tables */
+.tablewrap { overflow-x: auto; margin: 0 -4px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--chip); }
+td .name { color: var(--muted); font-size: 12px; margin-left: 6px; }
+tfoot td { font-weight: 600; border-top: 1px solid var(--axis); border-bottom: 0; }
+
+/* chips */
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; background: var(--chip); color: var(--ink-2); white-space: nowrap; }
+.chip .ic { font-size: 11px; line-height: 1; }
+.chip.good .ic { color: var(--good); } .chip.warn .ic { color: var(--warn); } .chip.crit .ic { color: var(--crit); } .chip.info .ic { color: var(--series); }
+.chip.good { color: var(--good-text); } .chip.crit { color: var(--crit-text); } .chip.warn { color: var(--warn-text); }
+
+/* orders */
+.orow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--grid); }
+.orow:last-child { border-bottom: 0; }
+.orow .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.orow .what { font-weight: 560; min-width: 0; overflow-wrap: anywhere; }
+.orow .why { grid-column: 2 / 4; color: var(--ink-2); font-size: 12px; }
+.steps { grid-column: 2 / 4; display: flex; align-items: center; gap: 0; margin-top: 2px; }
+.step { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.step .s { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--axis); background: var(--surface); flex: none; }
+.step.on { color: var(--ink-2); } .step.on .s { background: var(--series); box-shadow: none; }
+.step.stop .s { background: var(--crit); box-shadow: none; } .step.stop { color: var(--crit-text); }
+.step.cur .s { box-shadow: 0 0 0 3px var(--track); }
+.link { flex: 1 1 18px; min-width: 10px; height: 2px; background: var(--grid); margin: 0 6px; }
+.link.on { background: var(--series); }
+
+/* lists */
+.list { display: flex; flex-direction: column; }
+.li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 7px 2px; border-bottom: 1px solid var(--grid); }
+.li:last-child { border-bottom: 0; }
+.li .main { min-width: 0; overflow-wrap: anywhere; }
+.li .meta { color: var(--muted); font-size: 12px; }
+.li .sub2 { grid-column: 1 / 3; color: var(--ink-2); font-size: 12px; overflow-wrap: anywhere; }
+.li code { font: 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-2); }
+.section-label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; margin: 14px 0 4px; }
+.counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.people { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--series); color: #fff; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
+
+.notes { margin-top: 12px; color: var(--warn-text); font-size: 12.5px; }
+footer { margin-top: 18px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--raise); color: var(--ink); box-shadow: 0 0 0 1px var(--ring), 0 6px 20px rgba(0,0,0,.12); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.5; display: none; font-variant-numeric: tabular-nums; max-width: 260px; }
+#tip b { font-weight: 600; }
+#tip .r { display: flex; justify-content: space-between; gap: 14px; color: var(--ink-2); }
+#tip .r span:last-child { color: var(--ink); }
+
+@media (max-width: 1000px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .span-5, .span-6, .span-7 { grid-column: span 12; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 16px 16px 32px; }
+  .tiles { grid-template-columns: minmax(0, 1fr); }
+  .tile .value { font-size: 24px; }
+  .arow { grid-template-columns: 48px minmax(0, 1fr) 78px; gap: 8px; }
+  .step span.l { display: none; }
+  .orow { grid-template-columns: 28px minmax(0, 1fr); }
+  .orow > .chip { grid-column: 2; justify-self: start; }
+  .steps, .orow .why { grid-column: 2; }
+}
+@media (forced-colors: active) { .bar, .k-bar { forced-color-adjust: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Your live dashboard</h1>
+      <div class="sub" id="sub">Loading&hellip;</div>
+    </div>
+    <div class="pills">
+      <span class="pill" id="acct"></span>
+      <span class="pill" id="mkt"></span>
+      <span class="pill live" id="live"><i class="dot"></i><span id="livetxt">Connecting</span></span>
+      <button class="pill" id="theme" type="button" title="Theme">Theme: auto</button>
+    </div>
+  </header>
+
+  <section class="tiles" id="tiles" aria-label="Account summary"></section>
+
+  <div class="grid">
+    <section class="card span-5" aria-labelledby="h-alloc">
+      <div class="head"><h2 id="h-alloc">Allocation vs target</h2><div class="hint" id="alloc-hint"></div></div>
+      <div id="alloc"></div>
+    </section>
+    <section class="card span-7" aria-labelledby="h-pos">
+      <div class="head"><h2 id="h-pos">Positions</h2><div class="hint" id="pos-hint"></div></div>
+      <div id="positions"></div>
+    </section>
+    <section class="card span-7" aria-labelledby="h-orders">
+      <div class="head"><h2 id="h-orders">Orders</h2><div class="hint" id="orders-hint"></div></div>
+      <div id="orders"></div>
+    </section>
+    <section class="card span-5" aria-labelledby="h-alerts">
+      <div class="head"><h2 id="h-alerts">Alerts and monitors</h2><div class="hint" id="alerts-hint"></div></div>
+      <div id="alerts"></div>
+    </section>
+    <section class="card span-6" aria-labelledby="h-gate">
+      <div class="head"><h2 id="h-gate">Gatekeeper</h2><div class="hint" id="gate-hint"></div></div>
+      <div id="gate"></div>
+    </section>
+    <section class="card span-6" aria-labelledby="h-talk">
+      <div class="head"><h2 id="h-talk">Claude to Claude</h2><div class="hint" id="talk-hint"></div></div>
+      <div id="talk"></div>
+    </section>
+  </div>
+  <div class="notes" id="notes"></div>
+  <footer>
+    <span>Read-only: this page never places orders or changes files. Delayed quotes. Education and tooling, not financial advice.</span>
+    <span id="base"></span>
+  </footer>
+</div>
+<div id="tip" role="tooltip"></div>
+<script>
+(function () {
+  "use strict";
+  var EMBEDDED = /*__STATE__*/null;
+  var EVERY = /*__EVERY__*/5;
+  var state = EMBEDDED, lastOk = null, failing = false;
+
+  // ---------- helpers
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      if (attrs[k] == null || attrs[k] === false) continue;
+      if (k === "class") el.className = attrs[k];
+      else if (k === "text") el.textContent = attrs[k];
+      else if (k === "style") el.setAttribute("style", attrs[k]);
+      else if (k.slice(0, 5) === "data-") el.setAttribute(k, attrs[k]);
+      else el[k] = attrs[k];
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      var c = arguments[i];
+      if (c == null || c === false) continue;
+      if (Array.isArray(c)) c.forEach(function (x) { if (x != null && x !== false) el.appendChild(typeof x === "string" ? document.createTextNode(x) : x); });
+      else el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    }
+    return el;
+  }
+  function put(id, node) { var el = document.getElementById(id); el.textContent = ""; if (node) el.appendChild(node); }
+  function txt(id, s) { document.getElementById(id).textContent = s || ""; }
+  var usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  function money(x, sign) {
+    if (x == null) return "–";
+    var s = usd.format(Math.abs(x));
+    return sign ? (x >= 0 ? "+" : "−") + s : (x < 0 ? "−" + s : s);
+  }
+  function pct(x, sign, dp) {
+    if (x == null) return "–";
+    var d = dp == null ? 2 : dp;
+    var s = Math.abs(x).toFixed(d) + "%";
+    return sign ? (x >= 0 ? "+" : "−") + s : (x < 0 ? "−" + s : s);
+  }
+  function num(x) { if (x == null) return "–"; return (+x).toLocaleString("en-US", { maximumFractionDigits: 4 }); }
+  function when(s) { if (!s) return null; var d = new Date(s); return isNaN(d) ? null : d; }
+  function ago(s) {
+    var d = when(s); if (!d) return "never";
+    var m = (Date.now() - d.getTime()) / 60000;
+    if (m < 1) return "just now";
+    if (m < 60) return Math.floor(m) + "m ago";
+    if (m < 60 * 48) return Math.floor(m / 60) + "h ago";
+    return Math.floor(m / 1440) + "d ago";
+  }
+  function clock(s) {
+    var d = when(s); if (!d) return "";
+    var today = new Date().toDateString() === d.toDateString();
+    return today ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                 : d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  function chip(kind, icon, label, title) {
+    return h("span", { class: "chip " + (kind || ""), title: title || null }, icon ? h("span", { class: "ic", "aria-hidden": "true", text: icon }) : null, label);
+  }
+  function delta(x, text) {
+    if (x == null) return h("span", { text: text || "–" });
+    return h("span", { class: x >= 0 ? "up" : "down" }, (x >= 0 ? "▲ " : "▼ ") + text);
+  }
+  function empty(msg, code) { return h("div", { class: "empty" }, msg, code ? h("code", { text: code }) : null); }
+
+  // ---------- tooltip
+  var tip = document.getElementById("tip");
+  function showTip(e, rows, title) {
+    tip.textContent = "";
+    if (title) tip.appendChild(h("b", { text: title }));
+    rows.forEach(function (r) { tip.appendChild(h("div", { class: "r" }, h("span", { text: r[0] }), h("span", { text: r[1] }))); });
+    tip.style.display = "block";
+    moveTip(e);
+  }
+  function moveTip(e) {
+    var x = e.clientX + 14, y = e.clientY + 14, w = tip.offsetWidth, hh = tip.offsetHeight;
+    if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+    if (y + hh > innerHeight - 8) y = e.clientY - hh - 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  // ---------- header
+  function renderHeader(s) {
+    var a = s.account, mk = s.market;
+    var acct = document.getElementById("acct");
+    acct.textContent = "";
+    if (a.paper) { acct.className = "pill"; acct.appendChild(h("i", { class: "dot" })); acct.appendChild(h("b", { text: "Paper account" })); }
+    else { acct.className = "pill danger"; acct.appendChild(h("span", { text: "⚠" })); acct.appendChild(h("b", { text: "LIVE account, real money" })); }
+    var m = document.getElementById("mkt");
+    m.textContent = "";
+    if (mk) {
+      m.appendChild(h("i", { class: "dot " + (mk.open ? "good" : "") }));
+      if (mk.open) m.appendChild(h("span", null, h("b", { text: "NYSE open" }), " · closes " + (mk.closes || "") + (mk.early_close ? " (early)" : "") + " ET"));
+      else m.appendChild(h("span", null, h("b", { text: "NYSE closed" }), mk.next_open ? " · opens " + mk.next_open.replace(/^(\d{4})-(\d\d)-(\d\d) /, function (_, y, mo, d) { return new Date(+y, +mo - 1, +d).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " "; }) + " ET" : ""));
+    } else { m.appendChild(h("span", { text: "Market clock unavailable" })); }
+    var bits = [];
+    bits.push((a.broker === "ibkr" ? "Interactive Brokers" : "Alpaca"));
+    if (s.prices_as_of) bits.push("prices " + ago(s.prices_as_of));
+    if (s.targets && s.targets.source) bits.push("targets: " + s.targets.source.split(",")[0]);
+    txt("sub", bits.join(" · "));
+    txt("base", s.base || "");
+  }
+
+  // ---------- tiles
+  function tile(label, value, deltaNode, note) {
+    return h("div", { class: "tile" }, h("div", { class: "label", text: label }), h("div", { class: "value", text: value }),
+      deltaNode ? h("div", { class: "delta" }, deltaNode) : null, note ? h("div", { class: "note", text: note }) : null);
+  }
+  function renderTiles(s) {
+    var a = s.account, c = s.order_counts || {}, box = document.getElementById("tiles");
+    box.textContent = "";
+    if (a.fresh) {
+      box.appendChild(tile("Budget", money(a.budget), null, "Not invested yet"));
+    } else {
+      box.appendChild(tile("Account value", money(a.total),
+        a.day_change == null ? h("span", { text: "No previous close yet" }) : h("span", null, delta(a.day_change, money(a.day_change, true) + " (" + pct(a.day_pct, true) + ")"), " today"),
+        "Cash plus positions at delayed prices"));
+    }
+    box.appendChild(tile("Unrealized gain", a.gain == null ? "–" : money(a.gain, true),
+      a.gain_pct == null ? null : h("span", null, delta(a.gain_pct, pct(a.gain_pct, true)), " on " + money(a.cost) + " cost"), null));
+    var low = a.cash != null && a.buffer_usd != null && a.cash < a.buffer_usd - 0.005;
+    box.appendChild(tile("Cash", money(a.cash),
+      low ? chip("warn", "⚠", "Under the " + a.buffer_pct + "% buffer") : h("span", { text: a.buffer_usd != null ? "Buffer " + a.buffer_pct + "% = " + money(a.buffer_usd) : "" }), null));
+    var total = c.total || 0, placed = c.placed || 0;
+    var parts = [];
+    if (c.ready) parts.push(c.ready + " waiting for your yes");
+    if (c.approved) parts.push(c.approved + " approved");
+    if (c.blocked) parts.push(c.blocked + " blocked");
+    if (c.proposed) parts.push(c.proposed + " need a risk check");
+    box.appendChild(tile("Orders today", total ? placed + " of " + total + " placed" : "None", null,
+      total ? (parts.join(" · ") || "All done") : "No proposals in trader/orders.json"));
+  }
+
+  // ---------- allocation
+  function renderAlloc(s) {
+    var rows = (s.positions || []).filter(function (p) { return p.weight_pct != null || p.target_pct != null; });
+    var t = s.targets || {};
+    txt("alloc-hint", t.available ? "Band ±" + t.band + " pts · % of account" : "% of account");
+    if (!rows.length) { put("alloc", empty("Nothing held yet. ", "/trader-budget")); return; }
+    var max = 0;
+    rows.forEach(function (p) { max = Math.max(max, p.weight_pct || 0, p.target_pct || 0); });
+    max = Math.max(5, Math.ceil((max * 1.1) / 5) * 5);
+    var wrap = h("div");
+    if (t.available) wrap.appendChild(h("div", { class: "key" }, h("span", null, h("i", { class: "k-bar" }), "Now"), h("span", null, h("i", { class: "k-tgt" }), "Target"), h("span", { text: "Shaded: within the band" })));
+    var list = h("div", { class: "rows", role: "list" });
+    rows.forEach(function (p) {
+      var w = p.weight_pct || 0, track = h("div", { class: "track" }, h("div", { class: "base" }));
+      if (p.target_pct != null && p.tracked !== false) {
+        var lo = Math.max(0, p.target_pct - t.band), hi = Math.min(max, p.target_pct + t.band);
+        track.appendChild(h("div", { class: "band", style: "left:" + (lo / max * 100) + "%;width:" + ((hi - lo) / max * 100) + "%" }));
+      }
+      track.appendChild(h("div", { class: "bar", style: "width:" + (w / max * 100) + "%" }));
+      if (p.target_pct != null && p.tracked !== false) track.appendChild(h("div", { class: "tgt", style: "left:" + (p.target_pct / max * 100) + "%" }));
+      var v = h("div", { class: "v" }, pct(w, false, 1));
+      if (p.drift != null && p.tracked !== false) {
+        v.appendChild(h("small", { class: p.outside_band ? "flag" : "" }, (p.outside_band ? "⚠ " : "") + (p.drift >= 0 ? "+" : "−") + Math.abs(p.drift).toFixed(1) + " pts"));
+      } else if (p.tracked === false) v.appendChild(h("small", { text: "no target" }));
+      var row = h("div", { class: "arow", role: "listitem", tabIndex: 0 }, h("div", { class: "t", text: p.ticker }), track, v);
+      var tipRows = [["Now", pct(w, false, 1) + " · " + money(p.value)]];
+      if (p.target_pct != null) tipRows.push(["Target", pct(p.target_pct, false, 1)]);
+      if (p.drift != null) tipRows.push(["Drift", (p.drift >= 0 ? "+" : "−") + Math.abs(p.drift).toFixed(2) + " pts" + (p.outside_band ? " (outside band)" : "")]);
+      row.addEventListener("mousemove", function (e) { showTip(e, tipRows, p.ticker + (p.name ? " · " + p.name : "")); });
+      row.addEventListener("mouseleave", hideTip);
+      row.setAttribute("aria-label", p.ticker + " " + tipRows.map(function (r) { return r[0] + " " + r[1]; }).join(", "));
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+    var out = rows.filter(function (p) { return p.outside_band; }).length;
+    if (t.available) wrap.appendChild(h("div", { class: "section-label", text: out ? out + " outside the band: /trader-rebalance proposes trades" : "Everything is inside the band" }));
+    put("alloc", wrap);
+  }
+
+  // ---------- positions table
+  function renderPositions(s) {
+    var rows = (s.positions || []).filter(function (p) { return p.shares > 0; }), a = s.account;
+    txt("pos-hint", s.prices_as_of ? "Prices " + ago(s.prices_as_of) : "No prices yet");
+    if (!rows.length) { put("positions", empty(a.fresh ? "No positions yet. Your budget is " + money(a.budget) + ". " : "No positions. ", "/trader-copycat")); return; }
+    var thead = h("thead", null, h("tr", null, ["Stock", "Shares", "Price", "Today", "Value", "Gain", "Weight"].map(function (c) { return h("th", { text: c }); })));
+    var tb = h("tbody");
+    rows.forEach(function (p) {
+      tb.appendChild(h("tr", null,
+        h("td", null, h("b", { text: p.ticker }), p.name ? h("span", { class: "name", text: p.name }) : null),
+        h("td", { text: num(p.shares) }),
+        h("td", { text: p.has_price ? money(p.price) : "no price" }),
+        h("td", null, p.day_pct == null ? "–" : delta(p.day_pct, pct(p.day_pct, true))),
+        h("td", { text: money(p.value) }),
+        h("td", null, p.gain == null ? "–" : delta(p.gain, money(p.gain, true) + " (" + pct(p.gain_pct, true, 1) + ")")),
+        h("td", { text: pct(p.weight_pct, false, 1) })));
+    });
+    tb.appendChild(h("tr", null, h("td", null, h("span", { text: "Cash" })), h("td"), h("td"), h("td"), h("td", { text: money(a.cash) }), h("td"), h("td", { text: a.total ? pct(100 * a.cash / a.total, false, 1) : "–" })));
+    var tf = h("tfoot", null, h("tr", null, h("td", { text: "Total" }), h("td"), h("td"), h("td", null, a.day_change == null ? "" : delta(a.day_change, money(a.day_change, true))), h("td", { text: money(a.total) }), h("td", null, a.gain == null ? "" : delta(a.gain, money(a.gain, true))), h("td", { text: "100%" })));
+    put("positions", h("div", { class: "tablewrap" }, h("table", null, thead, tb, tf)));
+  }
+
+  // ---------- orders
+  var STATUS = {
+    proposed: ["", "○", "Needs a risk check"],
+    blocked: ["crit", "✕", "Blocked by trader-risk"],
+    ready: ["info", "●", "Waiting for your yes"],
+    approved: ["info", "✓", "You said yes"],
+    placed: ["good", "✓", "Placed"],
+    declined: ["", "–", "You said no"],
+    denied: ["warn", "✕", "Denied on the card"],
+    failed: ["crit", "⚠", "Failed"]
+  };
+  function renderOrders(s) {
+    var list = s.orders || [];
+    txt("orders-hint", list.length ? "Risk check → your yes → Allow once" : "");
+    if (!list.length) { put("orders", empty("No proposed orders. ", "/trader-budget")); return; }
+    var box = h("div");
+    list.forEach(function (o) {
+      var st = STATUS[o.status] || ["", "○", o.status];
+      var labels = ["Proposed", o.status === "blocked" ? "Blocked" : "Risk PASS", "Your yes", o.status === "placed" ? "Placed" : (o.status === "denied" || o.status === "failed" || o.status === "declined" ? st[2] : "Placed")];
+      var steps = h("div", { class: "steps", "aria-hidden": "true" });
+      labels.forEach(function (l, i) {
+        var n = i + 1, on = n <= o.step, stop = (o.status === "blocked" && n === 2) || ((o.status === "denied" || o.status === "failed" || o.status === "declined") && n === 4 - (o.status === "declined" ? 1 : 0));
+        if (i) steps.appendChild(h("i", { class: "link" + (on && !stop ? " on" : "") }));
+        steps.appendChild(h("span", { class: "step" + (stop ? " stop" : on ? " on" : "") + (n === o.step ? " cur" : "") }, h("i", { class: "s" }), h("span", { class: "l", text: l })));
+      });
+      var row = h("div", { class: "orow" },
+        h("div", { class: "n", text: "#" + o.index }),
+        h("div", { class: "what", text: o.plain }),
+        chip(st[0], st[1], st[2] + (o.at && (o.status === "placed" || o.status === "approved") ? " " + clock(o.at) : ""), o.label),
+        steps);
+      if (o.reasons && o.reasons.length) row.appendChild(h("div", { class: "why", text: o.reasons.join("; ") }));
+      else if (o.why) row.appendChild(h("div", { class: "why", text: o.why }));
+      box.appendChild(row);
+    });
+    put("orders", box);
+  }
+
+  // ---------- alerts and monitors
+  function renderAlerts(s) {
+    var box = h("div"), rules = s.alerts || [], rang = rules.filter(function (r) { return r.rang; }).length;
+    txt("alerts-hint", rules.length ? rang + " of " + rules.length + " rang" : "");
+    if (rules.length) {
+      var l = h("div", { class: "list" });
+      rules.forEach(function (r) {
+        l.appendChild(h("div", { class: "li" }, h("div", { class: "main", text: r.text }),
+          r.rang ? chip("warn", "◆", "Rang " + clock(r.rang_at)) : chip("", "○", "Armed")));
+      });
+      box.appendChild(l);
+    } else box.appendChild(empty("No price alerts. ", "/trader-alerts"));
+    box.appendChild(h("div", { class: "section-label", text: "Monitors" }));
+    var ml = h("div", { class: "list" });
+    (s.monitors || []).forEach(function (m) {
+      var c = m.status === "fresh" ? chip("good", "●", ago(m.last)) : m.status === "stale" ? chip("warn", "⚠", ago(m.last)) : chip("", "○", "never run");
+      ml.appendChild(h("div", { class: "li", title: m.skill }, h("div", { class: "main" }, m.name, h("span", { class: "meta", text: "  " + m.skill })), c));
+    });
+    box.appendChild(ml);
+    put("alerts", box);
+  }
+
+  // ---------- gatekeeper
+  var DEC = { deny: ["crit", "✕", "Denied"], ask: ["warn", "?", "Asked"], ok: ["good", "✓", "Yes verified"] };
+  function renderGate(s) {
+    var g = s.gate || {}, box = h("div"), t = g.today || {};
+    txt("gate-hint", g.installed ? "Hook installed" : "");
+    if (!g.installed) box.appendChild(h("div", { class: "counts" }, chip("warn", "⚠", "Not installed"), h("span", { class: "empty", style: "padding:0" }, "Ask Claude to ", h("code", { text: "/gatekeeper install" }))));
+    box.appendChild(h("div", { class: "counts" }, chip("crit", "✕", (t.deny || 0) + " denied today"), chip("warn", "?", (t.ask || 0) + " asked"), chip("good", "✓", (t.ok || 0) + " yes verified")));
+    var rec = g.recent || [];
+    if (!rec.length) box.appendChild(empty("No decisions logged yet."));
+    else {
+      var l = h("div", { class: "list" });
+      rec.slice(0, 8).forEach(function (r) {
+        var d = DEC[r.decision] || ["", "·", r.decision];
+        l.appendChild(h("div", { class: "li" }, h("div", { class: "main" }, chip(d[0], d[1], d[2]), " ", h("span", { text: (r.rules || []).join(", ") })), h("div", { class: "meta", text: clock(r.at) }),
+          h("div", { class: "sub2" }, h("code", { text: r.what || "" }), r.reason ? h("div", { text: r.reason }) : null)));
+      });
+      box.appendChild(l);
+    }
+    put("gate", box);
+  }
+
+  // ---------- Claude to Claude
+  var KIND = { request: "info", handoff: "info", alert: "warn", done: "good", reply: "", note: "" };
+  function renderTalk(s) {
+    var t = s.talk || {}, box = h("div");
+    txt("talk-hint", t.total ? t.total + " messages · " + t.open + " open request" + (t.open === 1 ? "" : "s") : "");
+    if (!t.total) { put("talk", empty("No messages yet. ", "/claude-talks-to-claude")); return; }
+    var ppl = h("div", { class: "people" });
+    (t.people || []).forEach(function (p) {
+      ppl.appendChild(h("span", { class: "chip", title: "last active " + ago(p.last_active) }, p.name, p.unread ? h("span", { class: "badge", text: String(p.unread), title: p.unread + " unread" }) : null));
+    });
+    box.appendChild(ppl);
+    var l = h("div", { class: "list" });
+    (t.recent || []).slice(0, 8).forEach(function (m) {
+      l.appendChild(h("div", { class: "li" },
+        h("div", { class: "main" }, chip(KIND[m.kind] || "", null, m.kind), " ", h("span", { text: m.subject })),
+        h("div", { class: "meta", text: clock(m.at) }),
+        h("div", { class: "sub2", text: m.from + " → " + (m.to === "all" ? "everyone" : m.to) + (m.expects_reply ? " · reply expected" : "") })));
+    });
+    box.appendChild(l);
+    put("talk", box);
+  }
+
+  function render(s) {
+    if (!s) return;
+    renderHeader(s); renderTiles(s); renderAlloc(s); renderPositions(s); renderOrders(s); renderAlerts(s); renderGate(s); renderTalk(s);
+    var n = document.getElementById("notes"); n.textContent = "";
+    if (!s.has_trader) n.appendChild(h("div", { text: "No trader/ folder in " + s.base + " yet. Start with /trader-copycat or /trader-budget." }));
+    (s.notes || []).forEach(function (x) { n.appendChild(h("div", { text: "⚠ " + x })); });
+  }
+
+  // ---------- live
+  function tick() {
+    var el = document.getElementById("live"), t = document.getElementById("livetxt"), dot = el.querySelector(".dot");
+    if (EMBEDDED) { dot.className = "dot"; t.textContent = "Snapshot · " + clock(EMBEDDED.generated_at); return; }
+    if (failing) { dot.className = "dot warn"; t.textContent = "Offline · last update " + (lastOk ? ago(lastOk.toISOString()) : "never"); return; }
+    if (!lastOk) { t.textContent = "Connecting"; return; }
+    var sec = Math.round((Date.now() - lastOk) / 1000);
+    dot.className = "dot good"; t.textContent = "Live · updated " + (sec < 2 ? "just now" : sec + "s ago");
+  }
+  function pull() {
+    fetch("api/state", { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (s) { state = s; lastOk = new Date(); failing = false; render(s); tick(); })
+      .catch(function () { failing = true; tick(); });
+  }
+
+  // ---------- theme
+  var themes = ["auto", "light", "dark"], btn = document.getElementById("theme"), cur = "auto";
+  try { cur = localStorage.getItem("dash-theme") || "auto"; } catch (e) { cur = "auto"; }
+  function applyTheme() {
+    if (cur === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", cur);
+    btn.textContent = "Theme: " + cur;
+  }
+  btn.addEventListener("click", function () {
+    cur = themes[(themes.indexOf(cur) + 1) % themes.length];
+    try { localStorage.setItem("dash-theme", cur); } catch (e) { /* private mode */ }
+    applyTheme();
+  });
+  applyTheme();
+
+  if (EMBEDDED) { render(EMBEDDED); tick(); }
+  else { pull(); setInterval(pull, Math.max(1, EVERY) * 1000); }
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

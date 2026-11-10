@@ -1,0 +1,20 @@
+{
+  "off": [],
+  "order_tools": [
+    "place_stock_order"
+  ],
+  "forbidden_tools": [
+    "place_option_order",
+    "place_crypto_order",
+    "close_all_positions",
+    "cancel_all_orders",
+    "exercise_options_position"
+  ],
+  "broker_servers": [
+    "alpaca",
+    "ibkr"
+  ],
+  "secret_files": [
+    "my-broker-keys.txt"
+  ]
+}
